@@ -35,6 +35,6 @@ pid_controller_node:
     angular_kd: 0.10
 
     # ---- 三个目的点 A / B / C (map 坐标系 [x, y],单位米)----
-    goal_a: [1.0, 0.0]
-    goal_b: [2.0, 2.0]
-    goal_c: [0.0, 2.0]
+    goal_a: [0.718, 1.523]   # 向量 ad = d - a
+    goal_b: [1.846, 0.822]   # 向量 bd = d - b
+    goal_c: [2.653, 0.768]   # 向量 cd = d - c
