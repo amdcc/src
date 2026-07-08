@@ -22,6 +22,7 @@ pid_controller_node:
 
     # ---- 到点判定 / 转向门限 ----
     goal_tolerance: 0.08        # 距离小于该值判定到达,米
+    approach_radius: 0.20       # 进入该半径后启用过冲锁存,冲过目标即停,避免掉头振荡,米
     heading_gate: 1.2           # 航向误差大于该值时原地转向,弧度
 
     # ---- PID 增益 ----

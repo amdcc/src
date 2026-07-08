@@ -30,6 +30,7 @@ PidControllerNode::PidControllerNode()
 	max_angular_speed_ = declare_parameter<double>("max_angular_speed", 1.5);
 	max_wheel_rps_ = declare_parameter<double>("max_wheel_rps", 6.0);
 	goal_tolerance_ = declare_parameter<double>("goal_tolerance", 0.08);
+	approach_radius_ = declare_parameter<double>("approach_radius", 0.20);
 	heading_gate_ = declare_parameter<double>("heading_gate", 0.6);
 
 	// ---- PID 增益 ----
@@ -124,6 +125,7 @@ void PidControllerNode::mission_callback(const std_msgs::msg::String::SharedPtr 
 
 	active_goal_ = value;
 	state_ = MissionState::kNavigate;
+	min_distance_ = 1e9;  // 新一段行程,清空历史最近距离
 	linear_pid_.reset();
 	angular_pid_.reset();
 
@@ -169,8 +171,19 @@ void PidControllerNode::control_loop()
 	const double dy = goal.y - y;
 	const double distance = std::hypot(dx, dy);
 
-	// 已到达:停车并上报。
-	if (distance <= goal_tolerance_) {
+	// 记录本段行程到目标的历史最近距离(用于过冲判定)。
+	if (distance < min_distance_) {
+		min_distance_ = distance;
+	}
+
+	// 到达判定(带过冲锁存):
+	//   1) 距离进入容差带; 或
+	//   2) 曾足够接近目标(min_distance_ <= approach_radius_)后距离又开始变大,
+	//      说明已冲过目标点 —— 立即锁存到达,避免在目标附近掉头 / 原地振荡停不下来。
+	const bool within_tolerance = (distance <= goal_tolerance_);
+	const bool overshot = (min_distance_ <= approach_radius_) &&
+		(distance > min_distance_ + 0.5 * goal_tolerance_);
+	if (within_tolerance || overshot) {
 		state_ = MissionState::kReached;
 		linear_pid_.reset();
 		angular_pid_.reset();
@@ -179,8 +192,9 @@ void PidControllerNode::control_loop()
 		std_msgs::msg::Bool reached;
 		reached.data = true;
 		goal_reached_pub_->publish(reached);
-		RCLCPP_INFO(get_logger(), "已到达目的点 %c,距离 %.3f m",
-			static_cast<char>('A' + active_goal_ - 1), distance);
+		RCLCPP_INFO(get_logger(), "已到达目的点 %c,距离 %.3f m(最近 %.3f m,%s)",
+			static_cast<char>('A' + active_goal_ - 1), distance, min_distance_,
+			overshot ? "过冲锁存" : "进入容差");
 		return;
 	}
 

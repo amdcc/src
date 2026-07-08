@@ -66,6 +66,7 @@ private:
 	double max_angular_speed_{1.5};  // rad/s
 	double max_wheel_rps_{6.0};      // 单轮最大转速,转/秒
 	double goal_tolerance_{0.08};    // 到点距离阈值,米
+	double approach_radius_{0.20};   // 进入该半径后启用过冲锁存(米),避免在目标附近掉头振荡
 	double heading_gate_{0.6};       // 航向误差大于该值时原地转向,弧度
 
 	std::array<Waypoint, 3> waypoints_{};  // 索引 0/1/2 -> A/B/C
@@ -77,6 +78,7 @@ private:
 	// ---- 状态 ----
 	MissionState state_{MissionState::kStop};
 	int active_goal_{0};  // 0=无, 1/2/3 对应 A/B/C
+	double min_distance_{1e9};  // 本段行程到目标的历史最近距离,用于过冲判定
 	rclcpp::Time last_loop_time_;
 	bool has_last_time_{false};
 
