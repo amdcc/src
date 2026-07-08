@@ -27,14 +27,12 @@ def generate_launch_description():
 	serial_port_arg = DeclareLaunchArgument(
 		"serial_port",
 		default_value="/dev/ttyS1",
-		description="下发轮速数据包的串口一(RDK X5 GPIO UART1: 引脚 8/10)",
+		description="下发数据包的串口(RDK X5 GPIO UART1: 引脚 8/10)",
 	)
 	wheel_scale_arg = DeclareLaunchArgument(
 		"wheel_speed_scale",
 		default_value="15.0",
-		description="轮速(RPS)下发到下位机前的缩放系数。"
-		"下位机 PID 目标单位为编码器 cps,标准速度 Base_speed=35;"
-		"偏小车慢、偏大车快,按实车手感在 9~18 之间调",
+		description="行进包中 RPS -> 下位机整数车速的缩放系数,按实车手感在 9~18 之间调",
 	)
 
 	# PID 循迹 / 任务控制节点:订阅 /car_mission_start,输出 /wheel_speeds
@@ -46,7 +44,7 @@ def generate_launch_description():
 		parameters=[LaunchConfiguration("params_file")],
 	)
 
-	# 串口节点:订阅 /wheel_speeds、/goal_published、/goal_reached,打包发给下位机
+	# 串口节点:订阅 /goal_published(开始)、/wheel_speeds(行进)、/goal_reached(结束),打包发给下位机
 	uart_node = Node(
 		package="uart_to_mcu",
 		executable="uart_to_mcu_node",

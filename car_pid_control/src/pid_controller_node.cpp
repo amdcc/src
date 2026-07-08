@@ -108,6 +108,11 @@ void PidControllerNode::mission_callback(const std_msgs::msg::String::SharedPtr 
 		linear_pid_.reset();
 		angular_pid_.reset();
 		publish_stop();
+
+		// 通知串口节点下发结束包(停止行驶),与「到达目标」走同一条停止链路。
+		std_msgs::msg::Bool reached;
+		reached.data = true;
+		goal_reached_pub_->publish(reached);
 		RCLCPP_INFO(get_logger(), "收到指令 0: 停车");
 		return;
 	}

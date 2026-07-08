@@ -3,7 +3,7 @@
 <package format="3">
   <name>uart_to_mcu</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>将循迹端的启动/左右轮车速/结束事件打包,经串口(ttyS1,115200)下发给下位机</description>
   <maintainer email="oangepi@todo.todo">oangepi</maintainer>
   <license>Apache-2.0</license>
 
@@ -11,6 +11,7 @@
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
+
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
