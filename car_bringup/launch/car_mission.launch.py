@@ -8,18 +8,21 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-	"""小车任务控制整体 bring-up:PID 循迹节点 + 串口下发节点。
+	"""小车任务控制整体 bring-up:PID 循迹节点 + 串口下发节点一键拉起。
+
+	参数默认复用 car_pid_control 包内的 mission_params.yaml,可用 params_file 覆盖。
 
 	注意:本 launch 不启动 cartographer,请先单独启动 cartographer 建图/定位,
 	确保 map->base_link 的 TF 正常发布后再运行本 launch。
 	"""
-	pkg_share = get_package_share_directory("car_pid_control")
-	default_params = os.path.join(pkg_share, "config", "mission_params.yaml")
+	# 参数文件默认取自 car_pid_control 包(配置的唯一来源,避免重复维护)。
+	pid_pkg_share = get_package_share_directory("car_pid_control")
+	default_params = os.path.join(pid_pkg_share, "config", "mission_params.yaml")
 
 	params_arg = DeclareLaunchArgument(
 		"params_file",
 		default_value=default_params,
-		description="PID 循迹节点的参数文件",
+		description="PID 循迹节点的参数文件(默认为 car_pid_control/config/mission_params.yaml)",
 	)
 	serial_port_arg = DeclareLaunchArgument(
 		"serial_port",
