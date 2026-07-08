@@ -31,7 +31,7 @@ def generate_launch_description():
 	)
 	wheel_scale_arg = DeclareLaunchArgument(
 		"wheel_speed_scale",
-		default_value="9.0",
+		default_value="15.0",
 		description="轮速(RPS)下发到下位机前的缩放系数。"
 		"下位机 PID 目标单位为编码器 cps,标准速度 Base_speed=35;"
 		"偏小车慢、偏大车快,按实车手感在 9~18 之间调",
