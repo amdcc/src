@@ -1,0 +1,38 @@
+pid_controller_node:
+  ros__parameters:
+    # ---- 坐标系 / 话题 ----
+    map_frame: "map"            # cartographer 的地图坐标系
+    base_frame: "base_link"     # 小车本体坐标系(cartographer published_frame)
+    mission_topic: "/car_mission_start"
+    wheel_speeds_topic: "/wheel_speeds"
+    goal_published_topic: "/goal_published"
+    goal_reached_topic: "/goal_reached"
+
+    # ---- 控制回路 ----
+    control_frequency: 50.0     # Hz
+
+    # ---- 车辆机械参数(务必按实车测量修改)----
+    wheel_base: 0.20            # 左右轮间距,米
+    wheel_radius: 0.0325        # 车轮半径,米
+
+    # ---- 限幅 ----
+    max_linear_speed: 0.4       # m/s
+    max_angular_speed: 1.5      # rad/s
+    max_wheel_rps: 6.0          # 单轮最大转速,转/秒(需与下位机/wheel_speed_scale匹配)
+
+    # ---- 到点判定 / 转向门限 ----
+    goal_tolerance: 0.08        # 距离小于该值判定到达,米
+    heading_gate: 0.6           # 航向误差大于该值时原地转向,弧度
+
+    # ---- PID 增益 ----
+    linear_kp: 0.8
+    linear_ki: 0.0
+    linear_kd: 0.05
+    angular_kp: 1.8
+    angular_ki: 0.0
+    angular_kd: 0.10
+
+    # ---- 三个目的点 A / B / C (map 坐标系 [x, y],单位米)----
+    goal_a: [2.0, 0.0]
+    goal_b: [2.0, 2.0]
+    goal_c: [0.0, 2.0]
