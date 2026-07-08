@@ -176,14 +176,20 @@ void PidControllerNode::control_loop()
 		min_distance_ = distance;
 	}
 
-	// 到达判定(带过冲锁存):
+	// 航向误差(目标方向 - 当前朝向),规整到 [-pi, pi]。近目标时也用于判断是否已掠过。
+	const double target_heading = std::atan2(dy, dx);
+	const double heading_err = normalize_angle(target_heading - yaw);
+
+	// 到达判定(带过冲 / 掠过锁存):
 	//   1) 距离进入容差带; 或
-	//   2) 曾足够接近目标(min_distance_ <= approach_radius_)后距离又开始变大,
-	//      说明已冲过目标点 —— 立即锁存到达,避免在目标附近掉头 / 原地振荡停不下来。
+	//   2) 曾接近目标(min_distance_ <= approach_radius_)后距离又变大 —— 已冲过目标; 或
+	//   3) 已接近目标且航向误差超过原地转向门限 —— 目标已转到侧后方,再走就要「原地掉头」,
+	//      此刻直接判定到达停车,避免停住前先向后转一下。
+	const bool near_goal = (min_distance_ <= approach_radius_);
 	const bool within_tolerance = (distance <= goal_tolerance_);
-	const bool overshot = (min_distance_ <= approach_radius_) &&
-		(distance > min_distance_ + 0.5 * goal_tolerance_);
-	if (within_tolerance || overshot) {
+	const bool overshot = near_goal && (distance > min_distance_ + 0.5 * goal_tolerance_);
+	const bool passing = near_goal && (std::fabs(heading_err) >= heading_gate_);
+	if (within_tolerance || overshot || passing) {
 		state_ = MissionState::kReached;
 		linear_pid_.reset();
 		angular_pid_.reset();
@@ -192,15 +198,11 @@ void PidControllerNode::control_loop()
 		std_msgs::msg::Bool reached;
 		reached.data = true;
 		goal_reached_pub_->publish(reached);
+		const char * why = within_tolerance ? "进入容差" : (overshot ? "过冲锁存" : "掠过锁存");
 		RCLCPP_INFO(get_logger(), "已到达目的点 %c,距离 %.3f m(最近 %.3f m,%s)",
-			static_cast<char>('A' + active_goal_ - 1), distance, min_distance_,
-			overshot ? "过冲锁存" : "进入容差");
+			static_cast<char>('A' + active_goal_ - 1), distance, min_distance_, why);
 		return;
 	}
-
-	// 航向误差(目标方向 - 当前朝向),规整到 [-pi, pi]。
-	const double target_heading = std::atan2(dy, dx);
-	const double heading_err = normalize_angle(target_heading - yaw);
 
 	const double w = angular_pid_.compute(heading_err, dt);
 
