@@ -30,8 +30,6 @@ PidControllerNode::PidControllerNode()
 	max_angular_speed_ = declare_parameter<double>("max_angular_speed", 1.5);
 	max_wheel_rps_ = declare_parameter<double>("max_wheel_rps", 6.0);
 	goal_tolerance_ = declare_parameter<double>("goal_tolerance", 0.08);
-	approach_radius_ = declare_parameter<double>("approach_radius", 0.25);
-	near_goal_timeout_ = declare_parameter<double>("near_goal_timeout", 3.0);
 	heading_gate_ = declare_parameter<double>("heading_gate", 0.6);
 
 	// ---- PID 增益 ----
@@ -126,8 +124,6 @@ void PidControllerNode::mission_callback(const std_msgs::msg::String::SharedPtr 
 
 	active_goal_ = value;
 	state_ = MissionState::kNavigate;
-	min_distance_ = 1e9;  // 新一段行程,清空历史最近距离
-	near_goal_active_ = false;  // 复位终点区计时
 	linear_pid_.reset();
 	angular_pid_.reset();
 
@@ -173,38 +169,8 @@ void PidControllerNode::control_loop()
 	const double dy = goal.y - y;
 	const double distance = std::hypot(dx, dy);
 
-	// 记录本段行程到目标的历史最近距离(用于过冲判定)。
-	if (distance < min_distance_) {
-		min_distance_ = distance;
-	}
-
-	// 航向误差(目标方向 - 当前朝向),规整到 [-pi, pi]。近目标时也用于判断是否已掠过。
-	const double target_heading = std::atan2(dy, dx);
-	const double heading_err = normalize_angle(target_heading - yaw);
-
-	// 车头前向上目标的投影:>0 目标在车头前方,<=0 已越过目标所在横向平面。
-	// 与航向摆动无关地判断「是否已开过目标点」,对过冲和侧向掠过都鲁棒。
-	const double forward_proj = dx * std::cos(yaw) + dy * std::sin(yaw);
-
-	const bool near_goal = (min_distance_ <= approach_radius_);
-
-	// 记录首次进入终点区的时刻,用于兜底超时。
-	if (near_goal && !near_goal_active_) {
-		near_goal_active_ = true;
-		near_goal_start_time_ = now;
-	}
-
-	// 到达判定(多重保险,任一满足即锁存停车):
-	//   1) 进入容差带;
-	//   2) 接近目标后距离又变大 —— 已冲过目标(过冲);
-	//   3) 接近目标且车头已越过目标 forward_proj<=0(掠过,与航向摆动无关);
-	//   4) 进入终点区超过 near_goal_timeout 仍未停 —— 强制停车,杜绝目标附近无休止摆动。
-	const bool within_tolerance = (distance <= goal_tolerance_);
-	const bool overshot = near_goal && (distance > min_distance_ + 0.5 * goal_tolerance_);
-	const bool crossed_goal = near_goal && (forward_proj <= 0.0);
-	const bool dwell_timeout = near_goal_active_ &&
-		((now - near_goal_start_time_).seconds() > near_goal_timeout_);
-	if (within_tolerance || overshot || crossed_goal || dwell_timeout) {
+	// 已到达:停车并上报。
+	if (distance <= goal_tolerance_) {
 		state_ = MissionState::kReached;
 		linear_pid_.reset();
 		angular_pid_.reset();
@@ -213,33 +179,25 @@ void PidControllerNode::control_loop()
 		std_msgs::msg::Bool reached;
 		reached.data = true;
 		goal_reached_pub_->publish(reached);
-		const char * why = within_tolerance ? "进入容差"
-			: (overshot ? "过冲锁存" : (crossed_goal ? "掠过锁存" : "超时兜底"));
-		RCLCPP_INFO(get_logger(), "已到达目的点 %c,距离 %.3f m(最近 %.3f m,%s)",
-			static_cast<char>('A' + active_goal_ - 1), distance, min_distance_, why);
+		RCLCPP_INFO(get_logger(), "已到达目的点 %c,距离 %.3f m",
+			static_cast<char>('A' + active_goal_ - 1), distance);
 		return;
 	}
 
-	double w = 0.0;
+	// 航向误差(目标方向 - 当前朝向),规整到 [-pi, pi]。
+	const double target_heading = std::atan2(dy, dx);
+	const double heading_err = normalize_angle(target_heading - yaw);
+
+	const double w = angular_pid_.compute(heading_err, dt);
+
 	double v = 0.0;
-	if (near_goal) {
-		// 终点区(approach_radius 内):完全停止转向,直线驶入,杜绝任何大角度偏移。
-		// 近距离时 atan2 对位姿噪声极敏感,继续打舵会反复转向 / 摇摆 / 甩尾。
-		v = std::max(0.0, linear_pid_.compute(distance, dt));
+	if (std::fabs(heading_err) < heading_gate_) {
+		// 基本对准目标后才前进,并按航向误差的余弦衰减线速度(转弯时减速)。
+		v = linear_pid_.compute(distance, dt) * std::cos(heading_err);
+		v = std::max(0.0, v);
 	} else {
-		// 转向权限随距离淡出(限制角度偏移),对「小角度修正」和「原地对准」一视同仁:
-		// distance 由 2*approach_radius 收敛到 approach_radius 时 steer_scale 由 1 线性降到 0。
-		// 于是在 2*approach_radius 以内,转向被强制压小、逼近终点区时归零 —— 物理上不可能
-		// 在目标附近做大角度转向 / 原地掉头;远处 steer_scale=1 保留全权限对准。
-		const double steer_scale = clamp((distance - approach_radius_) / approach_radius_, 0.0, 1.0);
-		w = steer_scale * angular_pid_.compute(heading_err, dt);
-		if (std::fabs(heading_err) < heading_gate_) {
-			// 基本对准目标:前进,按航向误差余弦衰减线速度。
-			v = std::max(0.0, linear_pid_.compute(distance, dt) * std::cos(heading_err));
-		} else {
-			// 目标在侧后方:不前进,仅靠(受 steer_scale 约束的)转向慢慢对准,防止距离环积分饱和。
-			linear_pid_.reset();
-		}
+		// 航向误差过大,原地转向对准。
+		linear_pid_.reset();
 	}
 
 	// 差速运动学:v_wheel = v ∓ w * (轮距 / 2)。
