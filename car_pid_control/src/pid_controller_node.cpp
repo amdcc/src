@@ -242,9 +242,11 @@ void PidControllerNode::control_loop()
 		}
 	}
 
-	// 差速运动学:v_wheel = v ± w * (轮距 / 2)
-	const double v_left = v - w * (wheel_base_ / 2.0);
-	const double v_right = v + w * (wheel_base_ / 2.0);
+	// 差速运动学:v_wheel = v ∓ w * (轮距 / 2)。
+	// 实测本车转向与标准差速相反(命令 [左-,右+] 期望 CCW,实际却 CW),等效于左右轮对调。
+	// 故对 w 项取反,使「命令转向」与「实际转向」一致(航向闭环恢复负反馈)。直行(w=0)不受影响。
+	const double v_left = v + w * (wheel_base_ / 2.0);
+	const double v_right = v - w * (wheel_base_ / 2.0);
 
 	// 线速度(m/s)-> 车轮转速(转/秒): rps = v / (2*pi*r)
 	const double circumference = 2.0 * M_PI * wheel_radius_;
