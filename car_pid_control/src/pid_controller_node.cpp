@@ -204,15 +204,20 @@ void PidControllerNode::control_loop()
 		return;
 	}
 
-	const double w = angular_pid_.compute(heading_err, dt);
-
+	double w = 0.0;
 	double v = 0.0;
-	if (std::fabs(heading_err) < heading_gate_) {
+	if (near_goal) {
+		// 终点前(approach_radius 内)停止航向控制,直线驶入。
+		// 近距离时 atan2 对位姿噪声极敏感,继续打舵会导致反复转向 / 车身摇摆 / 甩尾。
+		// 由距离环把车带到容差内,由过冲 / 掠过锁存兜底停车。
+		v = std::max(0.0, linear_pid_.compute(distance, dt));
+	} else if (std::fabs(heading_err) < heading_gate_) {
 		// 基本对准目标后才前进,并按航向误差的余弦衰减线速度(转弯时减速)。
-		v = linear_pid_.compute(distance, dt) * std::cos(heading_err);
-		v = std::max(0.0, v);
+		w = angular_pid_.compute(heading_err, dt);
+		v = std::max(0.0, linear_pid_.compute(distance, dt) * std::cos(heading_err));
 	} else {
 		// 航向误差过大,原地转向对准。
+		w = angular_pid_.compute(heading_err, dt);
 		linear_pid_.reset();
 	}
 
