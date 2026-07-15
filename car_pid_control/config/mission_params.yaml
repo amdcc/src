@@ -28,9 +28,9 @@ pid_controller_node:
     linear_kp: 0.8
     linear_ki: 0.0
     linear_kd: 0.05
-    angular_kp: 1.8
+    angular_kp: 1.0
     angular_ki: 0.0
-    angular_kd: 0.10
+    angular_kd: 0.30
 
     # ---- 三个目的点 A / B / C (map 坐标系 [x, y],单位米)----
     goal_a: [0.718, 1.523]   # 向量 ad = d - a

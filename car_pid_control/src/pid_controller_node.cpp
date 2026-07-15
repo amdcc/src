@@ -36,9 +36,9 @@ PidControllerNode::PidControllerNode()
 	const double lin_kp = declare_parameter<double>("linear_kp", 0.8);
 	const double lin_ki = declare_parameter<double>("linear_ki", 0.0);
 	const double lin_kd = declare_parameter<double>("linear_kd", 0.05);
-	const double ang_kp = declare_parameter<double>("angular_kp", 1.8);
+	const double ang_kp = declare_parameter<double>("angular_kp", 1.0);
 	const double ang_ki = declare_parameter<double>("angular_ki", 0.0);
-	const double ang_kd = declare_parameter<double>("angular_kd", 0.10);
+	const double ang_kd = declare_parameter<double>("angular_kd", 0.30);
 
 	linear_pid_.set_gains(lin_kp, lin_ki, lin_kd);
 	linear_pid_.set_output_limits(0.0, max_linear_speed_);  // 距离环只前进,不倒车
